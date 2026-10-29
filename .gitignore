@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Video & Audio outputs
+output/
+*.mp4
+*.wav
+assets/sounds/*.wav
+
+# Local Facebook Configuration with sensitive credentials
+facebook_config.json
+facebook_posts.log
+.env
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

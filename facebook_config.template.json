@@ -1,0 +1,33 @@
+{
+  "facebook_page_id": "YOUR_FACEBOOK_PAGE_ID",
+  "facebook_page_access_token": "YOUR_PAGE_ACCESS_TOKEN",
+  "page_name": "Daily Flag Battles",
+  "videos_per_day": 10,
+  "post_as_reels": true,
+  "auto_schedule": true,
+  "schedule_timezone": "Asia/Kolkata",
+  "schedule_target_slots": [
+    "08:00",
+    "09:30",
+    "11:00",
+    "12:30",
+    "14:00",
+    "15:30",
+    "17:00",
+    "18:30",
+    "20:00",
+    "21:30"
+  ],
+  "hashtags": [
+    "#FlagBattle",
+    "#CountryBattle",
+    "#FlagWar",
+    "#Reels",
+    "#OddlySatisfying",
+    "#ViralVideo",
+    "#Gaming",
+    "#Simulation",
+    "#Shorts",
+    "#FYP"
+  ]
+}
