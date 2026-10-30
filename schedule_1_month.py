@@ -40,10 +40,32 @@ DEFAULT_SLOTS = [
 ]
 
 def load_config() -> Dict[str, Any]:
-    if not os.path.exists(CONFIG_PATH):
-        raise FileNotFoundError(f"Configuration file not found: {CONFIG_PATH}")
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    default_config = {
+        "facebook_page_id": os.environ.get("FACEBOOK_PAGE_ID", "").strip(),
+        "facebook_page_access_token": os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN", "").strip(),
+        "page_name": "Daily Flag Battles",
+        "hashtags": [
+            "#FlagBattle", "#CountryBattle", "#FlagWar", "#Reels",
+            "#OddlySatisfying", "#ViralVideo", "#Gaming", "#Simulation",
+            "#Shorts", "#FYP"
+        ]
+    }
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                file_config = json.load(f)
+                for k, v in file_config.items():
+                    if k not in default_config or not default_config[k]:
+                        default_config[k] = v
+        except Exception as e:
+            print(f"⚠️ Error reading config file: {e}. Using defaults/env.")
+
+    if os.environ.get("FACEBOOK_PAGE_ID"):
+        default_config["facebook_page_id"] = os.environ.get("FACEBOOK_PAGE_ID").strip()
+    if os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN"):
+        default_config["facebook_page_access_token"] = os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN").strip()
+
+    return default_config
 
 def load_progress() -> Dict[str, Any]:
     if os.path.exists(PROGRESS_PATH):
