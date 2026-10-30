@@ -32,11 +32,28 @@ from fb_uploader import (
 
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "facebook_config.json")
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "facebook_posts.log")
+STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state.json")
 
 DEFAULT_SLOTS = [
     "08:00", "09:30", "11:00", "12:30", "14:00",
     "15:30", "17:00", "18:30", "20:00", "21:30"
 ]
+
+def load_state() -> Dict[str, Any]:
+    if os.path.exists(STATE_PATH):
+        try:
+            with open(STATE_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_state(state: Dict[str, Any]):
+    try:
+        with open(STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Error saving state: {e}")
 
 def load_config() -> Dict[str, Any]:
     """Loads configuration from environment variables or facebook_config.json."""
@@ -59,14 +76,12 @@ def load_config() -> Dict[str, Any]:
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 file_config = json.load(f)
-                # Environment variables take precedence over config file
                 for k, v in file_config.items():
                     if k not in default_config or not default_config[k]:
                         default_config[k] = v
         except Exception as e:
             print(f"⚠️ Error reading config file: {e}. Using defaults/env.")
             
-    # Final check for environment variables override
     if os.environ.get("FACEBOOK_PAGE_ID"):
         default_config["facebook_page_id"] = os.environ.get("FACEBOOK_PAGE_ID").strip()
     if os.environ.get("FACEBOOK_PAGE_ACCESS_TOKEN"):
@@ -89,7 +104,7 @@ def log_post(message: str):
     except Exception:
         pass
 
-def run_daily_poster(count_override: Optional[int] = None, immediate: bool = False, cleanup: bool = False):
+def run_daily_poster(count_override: Optional[int] = None, immediate: bool = False, cleanup: bool = False, force: bool = False):
     print("\n" + "=" * 70)
     print("🚀 FLAG LINE BATTLE - FULLY AUTOMATED 10x REELS AUTO-POSTER")
     print("=" * 70)
@@ -108,16 +123,24 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
     print(f"🕒 Timezone: {timezone_name}")
     print(f"🤖 Environment: {'GitHub Actions (Cloud CI)' if os.environ.get('GITHUB_ACTIONS') == 'true' else 'Local System'}")
 
+    # Check if already fulfilled today
+    today_str = datetime.date.today().isoformat()
+    state = load_state()
+    if not force and state.get("last_date") == today_str and state.get("successful_uploads", 0) >= target_count:
+        print(f"\n✅ Today's {target_count} Reels have ALREADY been scheduled for {today_str}!")
+        print("Meta is publishing each video across the 10 peak slots throughout the day.")
+        print("Use --force to run an extra batch.\n")
+        return
+
     # 1. Test credentials
     is_valid, status_msg = test_credentials(page_id, access_token)
     print(f"📊 Facebook Connection: {status_msg}")
     
     if not is_valid:
         print("\n" + "!" * 70)
-        print("⚠️  FACEBOOK CREDENTIALS NOT AVAILABLE!")
+        print("⚠️  FACEBOOK CREDENTIALS NOT AVAILABLE OR EXPIRED!")
         print("!" * 70)
-        print("Set FACEBOOK_PAGE_ID and FACEBOOK_PAGE_ACCESS_TOKEN via environment variables")
-        print("or add them to facebook_config.json.")
+        print("Set FACEBOOK_PAGE_ID and a valid FACEBOOK_PAGE_ACCESS_TOKEN.")
         print(f"Proceeding in simulation/local-render mode for {target_count} videos...")
         print("=" * 70 + "\n")
 
@@ -130,13 +153,12 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
     all_countries = list(COUNTRY_DATABASE.keys())
     generated_records = []
     
-    # 3. Generate the 10 videos
+    # 3. Generate the videos
     for i in range(target_count):
         print(f"\n" + "-" * 60)
         print(f"🎬 [VIDEO {i + 1} OF {target_count}] Generating Battle Royale Video...")
         print("-" * 60)
         
-        # Pick 3 or 4 random countries (ensure variety)
         k = random.choice([3, 4])
         selected = random.sample(all_countries, k)
         
@@ -147,7 +169,6 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
             return_meta=True
         )
         
-        # Generate viral caption & hashtags
         caption = generate_caption(countries_list, winner, custom_hashtags=hashtags)
         sched_time = schedule_timestamps[i]
         
@@ -181,7 +202,6 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
         
         sched_str = datetime.datetime.fromtimestamp(sched).strftime('%Y-%m-%d %I:%M %p') if sched else 'Immediate'
 
-        # Record to local captions log
         try:
             with open(captions_file_path, "a", encoding="utf-8") as cap_file:
                 cap_file.write(f"--- VIDEO {vid_num} (Scheduled: {sched_str}) ---\n")
@@ -203,7 +223,6 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
             log_post(f"Video {vid_num} ({os.path.basename(path)}): {upload_msg}")
             if ok:
                 successful_uploads += 1
-                # If running in CI or cleanup requested, remove video to conserve runner disk space
                 if is_ci and os.path.exists(path):
                     try:
                         os.remove(path)
@@ -212,6 +231,15 @@ def run_daily_poster(count_override: Optional[int] = None, immediate: bool = Fal
                         pass
         else:
             print(f"[{vid_num}/{target_count}] Video ready: {os.path.basename(path)} (Output folder)")
+
+    # Save state
+    save_state({
+        "last_date": today_str,
+        "last_run_timestamp": int(time.time()),
+        "target_count": target_count,
+        "successful_uploads": successful_uploads,
+        "is_valid": is_valid
+    })
 
     print("\n" + "=" * 70)
     print("🎉 DAILY AUTOMATION BATCH COMPLETE!")
@@ -228,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--count", type=int, default=None, help="Number of reels to generate and post (default: 10)")
     parser.add_argument("--immediate", action="store_true", help="Post immediately instead of scheduling")
     parser.add_argument("--cleanup", action="store_true", help="Delete local video files after upload")
+    parser.add_argument("--force", action="store_true", help="Force generation even if already completed today")
     args = parser.parse_args()
 
-    run_daily_poster(count_override=args.count, immediate=args.immediate, cleanup=args.cleanup)
+    run_daily_poster(count_override=args.count, immediate=args.immediate, cleanup=args.cleanup, force=args.force)

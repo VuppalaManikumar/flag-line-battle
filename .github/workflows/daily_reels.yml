@@ -2,14 +2,21 @@ name: Daily 10x Facebook Reels Autopilot
 
 on:
   schedule:
-    # Runs daily at 02:00 UTC (07:30 AM IST) - schedules all 10 slots for the day
-    - cron: '0 2 * * *'
+    # Runs every 3 hours at minute 17 (e.g. 02:17, 05:17, 08:17, 11:17, 14:17, 17:17, 20:17, 23:17 UTC)
+    # Checks state: if today's 10 reels are already scheduled, it finishes in 2 seconds.
+    # If not (or if missed), it generates and schedules them immediately without delay!
+    - cron: '17 */3 * * *'
   workflow_dispatch:
     inputs:
       count:
         description: 'Number of Reels to generate and schedule (default: 10)'
         required: false
         default: '10'
+      force:
+        description: 'Force run even if already scheduled today'
+        required: false
+        type: boolean
+        default: false
       immediate:
         description: 'Publish immediately instead of scheduling'
         required: false
@@ -19,6 +26,9 @@ on:
 concurrency:
   group: reels-automation
   cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
   generate-and-post:
@@ -54,13 +64,27 @@ jobs:
           SCHEDULE_TIMEZONE: ${{ secrets.SCHEDULE_TIMEZONE || 'Asia/Kolkata' }}
           SDL_VIDEODRIVER: 'dummy'
         run: |
-          if [ "${{ github.event.inputs.immediate }}" = "true" ]; then
-            python fb_auto_poster.py --count "${{ github.event.inputs.count || '10' }}" --immediate --cleanup
-          else
-            python fb_auto_poster.py --count "${{ github.event.inputs.count || '10' }}" --cleanup
+          ARGS="--cleanup"
+          if [ "${{ github.event.inputs.count }}" != "" ]; then
+            ARGS="$ARGS --count ${{ github.event.inputs.count }}"
           fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          if [ "${{ github.event.inputs.immediate }}" = "true" ]; then
+            ARGS="$ARGS --immediate"
+          fi
+          python fb_auto_poster.py $ARGS
+
+      - name: Commit State File
+        if: always()
+        run: |
+          git config --global user.name "FlagBattle-Autopilot-Bot"
+          git config --global user.email "bot@flagbattle.local"
+          git add state.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update state [skip ci]" && git push)
 
       - name: Workflow Completion Notice
         run: |
-          echo "🎉 Automated 10x Reels pipeline finished successfully!"
+          echo "🎉 Automated Reels pipeline finished successfully!"
           echo "Meta Graph API will publish the scheduled Reels automatically throughout the day."
