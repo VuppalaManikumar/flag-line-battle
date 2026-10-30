@@ -1,5 +1,5 @@
 @echo off
-title Update Facebook Token - GitHub Actions Autopilot
+title Activate Facebook Token - Flag Line Battle 10x Autopilot
 cd /d "%~dp0"
-python update_github_secrets.py
+python activate_token.py
 pause
